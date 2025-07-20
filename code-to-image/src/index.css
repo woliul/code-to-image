@@ -1,0 +1,32 @@
+/* src/index.css */
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #1a1a1a; /* Dark background for the entire page */
+  font-family: 'Inter', sans-serif; /* Using Inter, as per common modern design */
+  display: flex; /* Use flexbox for centering */
+  justify-content: center; /* Center horizontally */
+  align-items: center; /* Center vertically */
+  min-height: 100vh; /* Ensure it takes full viewport height */
+  color: #e0e0e0; /* Default text color */
+  overflow: auto; /* Allow scrolling if content overflows */
+}
+
+/* Basic button styles for consistency (can be overridden inline) */
+button {
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  border: none;
+  border-radius: 5px;
+  transition: background-color 0.2s ease;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+select, textarea {
+  font-family: 'Inter', sans-serif;
+}
