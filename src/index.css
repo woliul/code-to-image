@@ -30,3 +30,11 @@ button:hover {
 select, textarea {
   font-family: 'Inter', sans-serif;
 }
+
+/* In your App.css or a dedicated CSS file */
+.react-codemirror2-wrapper .CodeMirror {
+  height: auto; /* Override CodeMirror's default fixed height */
+  min-height: 100px; /* Optional: ensure a minimum visible height */
+  /* You might also need to adjust overflow-y if still seeing scrollbars */
+  overflow-y: hidden !important; /* Forces scrollbar to be hidden, if CodeMirror doesn't handle it */
+}

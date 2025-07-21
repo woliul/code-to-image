@@ -1,36 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
-// --- THEME IMPORTS ---
-import {
-    atomOneDark,
-    atomOneLight,
-    dracula,
-    githubGist,
-    vs,
-    monokai,
-    hybrid,
-    rainbow,
-    arta,
-    solarizedDark,
-    solarizedLight,
-    vs2015,
-} from 'react-syntax-highlighter/dist/esm/styles/hljs';
-import { toPng, toSvg, toJpeg } from 'html-to-image';
 
+// --- NEW CodeMirror Imports ---
+import { UnControlled as CodeMirror } from 'react-codemirror2';
+import 'codemirror/lib/codemirror.css'; // Core CodeMirror CSS
+import 'codemirror/theme/dracula.css'; // Example: Dracula theme (used in your screenshots)
+import 'codemirror/theme/material.css'; // Example: Another theme
+import 'codemirror/theme/monokai.css'; // Example: Another theme
+// Add more themes as needed from node_modules/codemirror/theme/
 
-// --- LANGUAGE IMPORTS ---
-import javascript from 'react-syntax-highlighter/dist/esm/languages/hljs/javascript';
-import python from 'react-syntax-highlighter/dist/esm/languages/hljs/python';
-import css from 'react-syntax-highlighter/dist/esm/languages/hljs/css';
-import xml from 'react-syntax-highlighter/dist/esm/languages/hljs/xml'; // HTML is typically 'xml' for hljs
-import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
-
-// --- LANGUAGE REGISTRATION ---
-SyntaxHighlighter.registerLanguage('javascript', javascript);
-SyntaxHighlighter.registerLanguage('python', python);
-SyntaxHighlighter.registerLanguage('css', css);
-SyntaxHighlighter.registerLanguage('html', xml); // Register 'html' to use 'xml' highlighter
-SyntaxHighlighter.registerLanguage('json', json);
+// --- CodeMirror Language Modes ---
+import 'codemirror/mode/javascript/javascript';
+import 'codemirror/mode/python/python';
+import 'codemirror/mode/css/css';
+import 'codemirror/mode/xml/xml';
+import {toJpeg, toPng, toSvg} from "html-to-image"; // For HTML/XML
 
 
 function App() {
@@ -46,60 +29,46 @@ const unfold = (f, seed) => {
   return go(f, seed, [])
 }
 `);
-    // codeRef points to the outermost container that will be captured,
-    // which includes the transparent padding for shadows and clipped text.
+
+    // codeRef will now point to the CodeMirror container
     const codeRef = useRef(null);
-    // textareaRef points to the transparent textarea for user input.
-    const textareaRef = useRef(null);
+    const codeMirrorInstance = useRef(null); // To store the CodeMirror editor instance
     const [selectedLanguage, setSelectedLanguage] = useState('javascript');
-    const [selectedThemeName, setSelectedThemeName] = useState('vs2015');
-    const [currentBgColor, setCurrentBgColor] = useState('#1e1e1e');
+    const [selectedThemeName, setSelectedThemeName] = useState('dracula'); // Default CodeMirror theme
 
-
-    const languageOptions = [
-        { label: 'JavaScript', value: 'javascript' },
-        { label: 'Python', value: 'python' },
-        { label: 'CSS', value: 'css' },
-        { label: 'HTML/XML', value: 'html' },
-        { label: 'JSON', value: 'json' },
-    ];
-
-    // Map theme options to their corresponding HLJS theme objects and background colors
+    // Map theme options to CodeMirror themes and their background colors
     const themeOptions = [
-        { label: 'Atom One Dark', value: 'atomOneDark', themeObject: atomOneDark, backgroundColor: '#282c34' },
-        { label: 'Atom One Light', value: 'atomOneLight', themeObject: atomOneLight, backgroundColor: '#fafafa' },
-        { label: 'Dracula', value: 'dracula', themeObject: dracula, backgroundColor: '#282a36' },
-        { label: 'GitHub (Dark)', value: 'githubGist', themeObject: githubGist, backgroundColor: '#24292e' },
-        { label: 'GitHub (Light)', value: 'vs', themeObject: vs, backgroundColor: '#ffffff' },
-        { label: 'Monokai', value: 'monokai', themeObject: monokai, backgroundColor: '#272822' },
-        { label: 'Hybrid', value: 'hybrid', themeObject: hybrid, backgroundColor: '#1d1f21' },
-        { label: 'Rainbow', value: 'rainbow', themeObject: rainbow, backgroundColor: '#3f4144' },
-        { label: 'Arta', value: 'arta', themeObject: arta, backgroundColor: '#222222' },
-        { label: 'Solarized Dark', value: 'solarizedDark', themeObject: solarizedDark, backgroundColor: '#002b36' },
-        { label: 'Solarized Light', value: 'solarizedLight', themeObject: solarizedLight, backgroundColor: '#fdf6e3' },
-        { label: 'VS Code Modern Dark', value: 'vs2015', themeObject: vs2015, backgroundColor: '#1e1e1e' },
+        { label: 'Dracula', value: 'dracula', cmTheme: 'dracula', backgroundColor: '#282a36' },
+        { label: 'Material', value: 'material', cmTheme: 'material', backgroundColor: '#263238' },
+        { label: 'Monokai', value: 'monokai', cmTheme: 'monokai', backgroundColor: '#272822' },
     ];
 
-    // Effect to synchronize the scroll position of the textarea with the SyntaxHighlighter's <pre> tag
+    // Find the current background color based on the selected CodeMirror theme
+    const currentCmThemeOption = themeOptions.find(opt => opt.value === selectedThemeName);
+    const currentBgColor = currentCmThemeOption ? currentCmThemeOption.backgroundColor : '#282a36'; // Default to Dracula BG
+
+    // Update selectedLanguage options to match CodeMirror modes
+    const languageOptions = [
+        { label: 'JavaScript', value: 'javascript', cmMode: 'javascript' },
+        { label: 'Python', value: 'python', cmMode: 'python' },
+        { label: 'CSS', value: 'css', cmMode: 'css' },
+        { label: 'HTML/XML', value: 'html', cmMode: 'xml' }, // CodeMirror uses 'xml' mode for HTML
+        { label: 'JSON', value: 'json', cmMode: 'javascript' }, // JSON often uses JS mode in CM
+    ];
+
+    // This useEffect hook is crucial for ensuring CodeMirror renders correctly
+    // after the DOM element is available and stable.
     useEffect(() => {
-        const textarea = textareaRef.current;
-        // The highlighter's <pre> tag is a descendant of the div with data-code-window and gets the .hljs class
-        const codeWindowInner = codeRef.current?.querySelector('[data-code-window]');
-        const highlighterPre = codeWindowInner?.querySelector('.hljs');
-
-        if (textarea && highlighterPre) {
-            const handleScroll = () => {
-                highlighterPre.scrollTop = textarea.scrollTop;
-                highlighterPre.scrollLeft = textarea.scrollLeft;
-            };
-            textarea.addEventListener('scroll', handleScroll);
-            return () => {
-                textarea.removeEventListener('scroll', handleScroll);
-            };
+        if (codeMirrorInstance.current) {
+            // Force CodeMirror to refresh its layout.
+            // This is often needed when its container's size changes or on initial render
+            // when it might not correctly perceive its dimensions.
+            codeMirrorInstance.current.refresh();
         }
-    }, [selectedThemeName, code]); // Re-run if theme or code changes
+    }, [selectedLanguage, selectedThemeName, code]); // Re-run if language, theme, or code changes
 
-    // Function to handle downloading the image in various formats
+    // The handleDownloadImage function should remain largely the same,
+    // as it captures the entire codeRef div.
     const handleDownloadImage = async (format) => {
         if (!codeRef.current) {
             alert('Code snippet element not found. Cannot capture image.');
@@ -107,37 +76,16 @@ const unfold = (f, seed) => {
         }
 
         const nodeToCapture = codeRef.current;
-        const textarea = textareaRef.current;
-        // Select the actual <pre> element inside SyntaxHighlighter which gets the 'hljs' class
-        const highlighterPre = nodeToCapture.querySelector('.hljs');
-
-        // Store original styles to restore them after capture
-        let originalTextareaVisibility;
-        let originalTextareaOverflow;
-        let originalHighlighterOverflowX;
-
-        // Temporarily modify styles to ensure clean capture
-        if (textarea) {
-            originalTextareaVisibility = textarea.style.visibility;
-            originalTextareaOverflow = textarea.style.overflow;
-            textarea.style.visibility = 'hidden'; // Hide the transparent textarea during capture
-            textarea.style.overflow = 'hidden'; // Crucial: Hide textarea scrollbar
-        }
-        if (highlighterPre) {
-            originalHighlighterOverflowX = highlighterPre.style.overflowX;
-            highlighterPre.style.overflowX = 'hidden'; // Crucial: Hide highlighter horizontal scrollbar
-        }
 
         try {
             const commonOptions = {
-                cacheBust: true, // Prevents caching issues with dynamically generated content
-                backgroundColor: 'transparent', // Ensures transparency for PNG/SVG background
+                cacheBust: true,
+                backgroundColor: 'transparent',
             };
 
             let imagePromise;
             let fileName;
 
-            // Choose the appropriate html-to-image function based on format
             switch (format) {
                 case 'png':
                     imagePromise = toPng(nodeToCapture, commonOptions);
@@ -148,7 +96,6 @@ const unfold = (f, seed) => {
                     fileName = 'code-snippet.svg';
                     break;
                 case 'jpeg':
-                    // JPEG does not support transparency, so a white background is used by default
                     imagePromise = toJpeg(nodeToCapture, { ...commonOptions, backgroundColor: 'white' });
                     fileName = 'code-snippet.jpeg';
                     break;
@@ -157,61 +104,48 @@ const unfold = (f, seed) => {
                     return;
             }
 
-            // Await the image generation and trigger download
             const dataUrl = await imagePromise;
             const link = document.createElement('a');
             link.download = fileName;
             link.href = dataUrl;
-            document.body.appendChild(link); // Append to body to ensure it's clickable in all browsers
+            document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link); // Clean up the created link element
+            document.body.removeChild(link);
 
         } catch (err) {
             console.error(`Failed to download image as ${format}:`, err);
             alert(`Failed to download image as ${format}. Please check the browser console for details: ${err.message}`);
-        } finally {
-            // Restore original styles after capture, even if an error occurred
-            if (textarea) {
-                textarea.style.visibility = originalTextareaVisibility;
-                textarea.style.overflow = originalTextareaOverflow;
-            }
-            if (highlighterPre) {
-                highlighterPre.style.overflowX = originalHighlighterOverflowX;
-            }
         }
     };
 
+
     return (
-        // Main container for the entire application, controlling overall width and font
         <div style={{
             width: '100%',
             maxWidth: '900px',
             boxSizing: 'border-box',
             fontFamily: 'Inter, sans-serif'
         }}>
-            {/* Outer wrapper for the app's visual window, including controls and code area */}
             <div style={{
-                backgroundColor: 'rgb(231 236 239)', // Light gray background for the overall app window
+                backgroundColor: 'rgb(231 236 239)',
                 borderRadius: '12px',
-                padding: '40px',
+                padding: '15px',
                 width: '100%',
                 boxSizing: 'border-box',
                 display: 'flex',
                 flexDirection: 'column',
             }}>
-                {/* Top Bar: Language, Theme selectors and Export Buttons */}
                 <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    marginBottom: '20px',
-                    paddingBottom: '10px',
-                    flexWrap: 'wrap', // Allow wrapping on smaller screens
-                    gap: '20px', // Space between left and right sections when wrapped
+                    marginRight: '40px',
+                    marginTop: '20px',
+                    marginLeft: '40px',
+                    flexWrap: 'wrap',
+                    gap: '20px',
                 }}>
-                    {/* Left Section: Language & Theme Selectors */}
                     <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        {/* Language Select Dropdown */}
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                             <label htmlFor="language-select" style={{ marginRight: '8px', fontSize: '15px', color: 'rgb(62 68 81)' }}>Lang:</label>
                             <select
@@ -237,27 +171,19 @@ const unfold = (f, seed) => {
                             </select>
                         </div>
 
-                        {/* Theme Select Dropdown */}
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                             <label htmlFor="theme-select" style={{ marginRight: '8px', fontSize: '15px', color: 'rgb(62 68 81)' }}>Theme:</label>
                             <select
                                 id="theme-select"
                                 value={selectedThemeName}
-                                onChange={(e) => {
-                                    const newThemeName = e.target.value;
-                                    setSelectedThemeName(newThemeName);
-                                    const chosenThemeOption = themeOptions.find(option => option.value === newThemeName);
-                                    if (chosenThemeOption) {
-                                        setCurrentBgColor(chosenThemeOption.backgroundColor);
-                                    }
-                                }}
+                                onChange={(e) => setSelectedThemeName(e.target.value)}
                                 style={{
                                     padding: '6px 10px',
                                     fontSize: '14px',
                                     borderRadius: '6px',
-                                    border: '1px solid rgb(62, 68, 82)',
+                                    border: '1px solid #b5b5b5',
                                     backgroundColor: 'white',
-                                    color: 'rgb(62 68 80)',
+                                    color: 'rgb(62 68 81)',
                                     outline: 'none',
                                     cursor: 'pointer'
                                 }}
@@ -271,7 +197,6 @@ const unfold = (f, seed) => {
                         </div>
                     </div>
 
-                    {/* Right Section: Action Buttons (PNG, SVG, JPEG) */}
                     <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                         <button
                             onClick={() => handleDownloadImage('png')}
@@ -326,104 +251,72 @@ const unfold = (f, seed) => {
                     </div>
                 </div>
 
-                {/* This is the new wrapper for the shadow and the element to be captured.
-                    codeRef points to this div. Its padding provides transparent space for shadows/overflow. */}
                 <div
                     ref={codeRef}
                     style={{
-                         // Increased padding to ensure no clipping, especially for shadows
+                        padding: '40px',
                         boxSizing: 'border-box',
-                        backgroundColor: 'transparent', // Important for transparent image backgrounds
+                        backgroundColor: 'transparent',
                     }}
                 >
-                    {/* Inner Unified Code Input/Display Area - this is the actual visual code window
-                        with the background color, border radius, and shadow */}
                     <div
-                        data-code-window // Data attribute for easier selection within useEffect
                         style={{
                             position: 'relative',
-                            backgroundColor: currentBgColor, // Background color based on selected theme
-                            padding: '20px', // Inner padding for the code content itself
-                            borderRadius: '8px', // Rounded corners for the code window
-                            boxShadow: '0 8px 16px rgba(0,0,0,0.4)', // Drop shadow for depth
+                            backgroundColor: currentBgColor, // Set dynamically based on CM theme
+                            paddingTop: '20px',
+                            paddingBottom: '20px',
+                            borderRadius: '8px',
+                            boxShadow: '0 8px 16px rgba(0,0,0,0.4)',
                             boxSizing: 'border-box',
-                            minHeight: '200px', // Minimum height for the code area
-                            overflow: 'hidden', // Ensures content respects rounded corners in browser view
+                            height: 'auto',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            // Add horizontal padding here to the parent of CodeMirror, not CodeMirror itself.
+                            paddingLeft: '20px',
+                            paddingRight: '20px',
+                            overflow: 'hidden',
+                            lineHeight: '120%'
+
                         }}
                     >
-                        {/* Traffic Light Dots for visual appeal */}
-                        <div style={{ display: 'flex', gap: '8px', marginBottom: '15px' }}>
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '15px', paddingLeft: '0px' }}>
                             <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#ff5f56', border: '1px solid #e0443e' }}></div>
                             <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#ffbd2e', border: '1px solid #e0a22a' }}></div>
                             <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#27c93f', border: '1px solid #22b53b' }}></div>
                         </div>
 
-                        {/* Transparent Textarea for actual user input, overlaid on highlighter */}
-                        <textarea
-                            ref={textareaRef}
+                        {/* CodeMirror Component */}
+                        <CodeMirror
                             value={code}
-                            onChange={(e) => setCode(e.target.value)}
+                            options={{
+                                mode: languageOptions.find(opt => opt.value === selectedLanguage)?.cmMode || 'javascript',
+                                theme: currentCmThemeOption ? currentCmThemeOption.cmTheme : 'dracula',
+                                lineNumbers: true,
+                                lineWrapping: true,
+                                readOnly: false,
+                                viewportMargin: Infinity, // Important for showing all lines
+                            }}
+                            onChange={(editor, data, value) => {
+                                setCode(value);
+                            }}
+                            editorDidMount={(editor) => {
+                                // Store the editor instance
+                                codeMirrorInstance.current = editor;
+                                // Immediately refresh after mounting
+                                editor.refresh();
+                            }}
+                            className="react-codemirror2-wrapper"
                             style={{
-                                position: 'absolute',
-                                top: '47px', // Calculated offset: (20px top padding + 12px dot height + 15px margin-bottom)
-                                left: '20px', // Matches inner left padding
-                                width: 'calc(100% - 40px)', // Full width minus 20px padding on each side
-                                height: 'calc(100% - 47px)', // Full height minus calculated top offset
-                                backgroundColor: 'rgba(0,0,0,0.0)', // Transparent background
-                                color: 'transparent', // Hide text, only caret is visible
-                                caretColor: '#f8f8f2', // Caret color for visibility
-                                padding: '0',
-                                fontSize: '14px',
-                                lineHeight: '1.5',
+                                flexGrow: 1,
+                                fontSize: '13px',
                                 fontFamily: 'monospace',
-                                border: 'none',
-                                resize: 'none', // Disable textarea resizing
-                                outline: 'none',
-                                overflow: 'auto', // Allows scrolling for long code in live view (temporarily hidden for capture)
-                                whiteSpace: 'pre-wrap', // Preserves whitespace and wraps lines
-                                wordBreak: 'break-word', // Breaks long words if necessary
-                                boxSizing: 'border-box',
-                                zIndex: 2, // Ensures textarea is above highlighter for input
+                                paddingLeft: '20px',
+                                paddingRight: '20px',
+                                height: 'auto'
                             }}
-                            spellCheck="false"
-                            placeholder="Paste your code here..."
                         />
-
-                        {/* SyntaxHighlighter for visual display of the code */}
-                        <div
-                            style={{
-                                position: 'relative',
-                                zIndex: 1, // Below textarea
-                                height: '100%',
-                                overflow: 'hidden', // Keeps highlighter content within its bounds
-                                backgroundColor: 'transparent',
-                            }}
-                        >
-                            <SyntaxHighlighter
-                                language={selectedLanguage}
-                                // Dynamically select theme object based on selectedThemeName
-                                style={themeOptions.find(opt => opt.value === selectedThemeName)?.themeObject || atomOneDark}
-                                customStyle={{
-                                    margin: '0',
-                                    padding: '0 20px 20px 20px', // Aligned with the textarea's effective content area
-                                    fontSize: '14px',
-                                    lineHeight: '1.5',
-                                    fontFamily: 'monospace',
-                                    backgroundColor: 'transparent',
-                                    whiteSpace: 'pre-wrap',
-                                    wordBreak: 'break-word',
-                                    height: '100%',
-                                    boxSizing: 'border-box',
-                                    overflow: 'hidden', // Ensures highlighter content stays within bounds
-                                }}
-                            >
-                                {code}
-                            </SyntaxHighlighter>
-                        </div>
                     </div>
                 </div>
-                {/* Optional margin at the bottom of the entire component */}
-                <div style={{ marginBottom: '20px' }}></div>
             </div>
         </div>
     );
